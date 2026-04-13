@@ -1,0 +1,48 @@
+{
+  "name": "gainz",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
+    "test": "jest --watchAll=false"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.99.0",
+    "drizzle-orm": "^0.39.3",
+    "expo": "~54.0.33",
+    "expo-constants": "~17.0.0",
+    "expo-dev-client": "~5.0.0",
+    "expo-linking": "~7.0.0",
+    "expo-router": "~4.0.0",
+    "expo-sqlite": "~15.0.0",
+    "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~4.0.0",
+    "nativewind": "^4.2.3",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~4.12.0",
+    "react-native-screens": "~4.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@types/react": "~19.1.0",
+    "@types/react-test-renderer": "~19.1.0",
+    "babel-jest": "^29.0.0",
+    "babel-plugin-inline-import": "^3.0.0",
+    "babel-plugin-module-resolver": "^5.0.3",
+    "drizzle-kit": "^0.30.6",
+    "jest": "^29.0.0",
+    "jest-expo": "~54.0.0",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.9.2"
+  },
+  "jest": {
+    "preset": "jest-expo"
+  },
+  "private": true
+}
