@@ -1,4 +1,4 @@
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface EmptyStateProps {
@@ -29,4 +29,3 @@ export function EmptyState({ icon = 'inbox', title, message, action }: EmptyStat
   );
 }
 
-import { Pressable } from 'react-native';

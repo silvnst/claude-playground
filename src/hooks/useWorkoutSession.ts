@@ -43,7 +43,7 @@ export function useAddExerciseToSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ sessionId, exerciseId, orderIndex }: Parameters<typeof addExerciseToSession>[0] extends never ? never : { sessionId: string; exerciseId: string; orderIndex: number }) =>
+    mutationFn: ({ sessionId, exerciseId, orderIndex }: { sessionId: string; exerciseId: string; orderIndex: number }) =>
       addExerciseToSession(sessionId, exerciseId, orderIndex),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
