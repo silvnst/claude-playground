@@ -1,33 +1,37 @@
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useWorkoutSession, useUpdateSet, useAddSetToExercise, useCompleteSession } from '@/hooks/useWorkoutSession';
-import { useActiveWorkoutUI } from '@/hooks/useWorkoutSession';
+import {
+  useWorkoutSession,
+  useUpdateSet,
+  useAddSetToExercise,
+  useCompleteSession,
+  useDeleteSet,
+  useActiveWorkoutUI,
+} from '@/hooks/useWorkoutSession';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { SetRow } from '@/components/workout/SetRow';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDuration } from '@/utils/volume';
 
 export default function WorkoutScreen() {
   const router = useRouter();
-  const { sessionId } = useLocalSearchParams();
-  const { data: session, isLoading } = useWorkoutSession(sessionId as string);
+  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+  const { data: session, isLoading } = useWorkoutSession(sessionId);
   const updateSet = useUpdateSet();
   const addSet = useAddSetToExercise();
+  const deleteSet = useDeleteSet();
   const completeSession = useCompleteSession();
-  const { elapsedSeconds, setElapsedSeconds, currentExerciseIndex, setCurrentExerciseIndex } = useActiveWorkoutUI(
-    sessionId as string
-  );
+  const { elapsedSeconds, setElapsedSeconds, currentExerciseIndex, setCurrentExerciseIndex } =
+    useActiveWorkoutUI(sessionId);
 
   const [localWeights, setLocalWeights] = useState<Record<string, string>>({});
   const [localReps, setLocalReps] = useState<Record<string, string>>({});
 
-  // Timer
+  // Elapsed timer
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsedSeconds((s) => s + 1);
-    }, 1000);
+    const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -40,36 +44,22 @@ export default function WorkoutScreen() {
   }
 
   const currentExercise = session.exercises[currentExerciseIndex];
+  const hasExercises = session.exercises.length > 0;
 
-  const handleSetWeightChange = (setId: string, value: string) => {
-    setLocalWeights((prev) => ({ ...prev, [setId]: value }));
-  };
-
-  const handleSetRepsChange = (setId: string, value: string) => {
-    setLocalReps((prev) => ({ ...prev, [setId]: value }));
+  const openExercisePicker = () => {
+    router.push(`/exercise/picker?sessionId=${sessionId}`);
   };
 
   const handleToggleSetComplete = (setId: string) => {
-    const set = currentExercise.sets.find((s) => s.id === setId);
-    if (set) {
-      const weight = localWeights[setId] ? parseFloat(localWeights[setId]) : set.weight;
-      const reps = localReps[setId] ? parseInt(localReps[setId]) : set.reps;
-
-      updateSet.mutate({
-        setId,
-        data: {
-          weight,
-          reps,
-          isCompleted: !set.isCompleted,
-        },
-      });
-    }
+    const set = currentExercise?.sets.find((s) => s.id === setId);
+    if (!set) return;
+    const weight = localWeights[setId] ? parseFloat(localWeights[setId]) : set.weight;
+    const reps = localReps[setId] ? parseInt(localReps[setId], 10) : set.reps;
+    updateSet.mutate({ setId, data: { weight, reps, isCompleted: !set.isCompleted } });
   };
 
-  const handleAddSet = () => {
-    if (currentExercise) {
-      addSet.mutate(currentExercise.id);
-    }
+  const handleDeleteSet = (setId: string) => {
+    deleteSet.mutate(setId);
   };
 
   const handleFinishWorkout = () => {
@@ -77,99 +67,135 @@ export default function WorkoutScreen() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Finish',
-        style: 'default',
-        onPress: () => {
+        onPress: () =>
           completeSession.mutate(
-            {
-              sessionId: sessionId as string,
-              data: {
-                notes: `Completed ${session.exercises.length} exercises`,
-              },
-            },
-            {
-              onSuccess: () => {
-                router.push(`/workout/summary/${sessionId}`);
-              },
-            }
-          );
-        },
+            { sessionId, data: { notes: `Completed ${session.exercises.length} exercises` } },
+            { onSuccess: () => router.replace(`/workout/summary/${sessionId}`) }
+          ),
       },
     ]);
   };
 
   return (
     <View className="flex-1 bg-slate-950">
-      {/* Header with timer */}
+      {/* Header */}
       <View className="bg-slate-900 px-4 py-4 flex-row items-center justify-between border-b border-slate-800">
         <View className="flex-row items-center gap-2">
-          <Ionicons name="timer" size={24} color="#f97316" />
-          <Text className="text-white text-2xl font-bold">{formatDuration(elapsedSeconds)}</Text>
+          <Ionicons name="timer-outline" size={22} color="#f97316" />
+          <Text className="text-white text-xl font-bold">{formatDuration(elapsedSeconds)}</Text>
         </View>
-        <Text className="text-gray-400 text-sm">
-          {currentExerciseIndex + 1} / {session.exercises.length}
-        </Text>
+        <View className="flex-row items-center gap-4">
+          {hasExercises && (
+            <Text className="text-gray-400 text-sm">
+              {currentExerciseIndex + 1} / {session.exercises.length}
+            </Text>
+          )}
+          <Pressable onPress={openExercisePicker} hitSlop={8}>
+            <Ionicons name="add-circle-outline" size={28} color="#f97316" />
+          </Pressable>
+        </View>
       </View>
 
-      <ScrollView className="flex-1">
+      <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
         <View className="px-4 py-4">
-          {/* Current Exercise */}
+          {/* Empty state */}
+          {!hasExercises && (
+            <EmptyState
+              icon="barbell-outline"
+              title="No exercises yet"
+              message="Tap + above or the button below to add exercises to your workout."
+              action={{ label: 'Add Exercise', onPress: openExercisePicker }}
+            />
+          )}
+
+          {/* Current exercise */}
           {currentExercise && (
             <View className="gap-4">
               <View>
-                <Text className="text-gray-400 text-sm uppercase tracking-wider mb-2">Exercise {currentExerciseIndex + 1}</Text>
+                <Text className="text-gray-400 text-xs uppercase tracking-widest mb-1">
+                  Exercise {currentExerciseIndex + 1}
+                </Text>
                 <Text className="text-white text-2xl font-bold">{currentExercise.exercise.name}</Text>
-                {currentExercise.exercise.description && (
-                  <Text className="text-gray-400 text-sm mt-2">{currentExercise.exercise.description}</Text>
-                )}
+                {currentExercise.exercise.description ? (
+                  <Text className="text-gray-400 text-sm mt-1">{currentExercise.exercise.description}</Text>
+                ) : null}
               </View>
 
               {/* Sets */}
-              <View className="gap-2">
-                <View className="flex-row items-center justify-between">
+              <View>
+                <View className="flex-row items-center justify-between mb-2">
                   <Text className="text-white font-semibold">Sets</Text>
-                  <Pressable onPress={handleAddSet} className="active:opacity-70">
-                    <Ionicons name="add-circle" size={24} color="#f97316" />
+                  <Pressable onPress={() => addSet.mutate(currentExercise.id)} hitSlop={8}>
+                    <Ionicons name="add-circle" size={26} color="#f97316" />
                   </Pressable>
                 </View>
-
                 {currentExercise.sets.map((set, idx) => (
                   <SetRow
                     key={set.id}
                     setIndex={idx + 1}
-                    weight={parseFloat(localWeights[set.id] || set.weight?.toString() || '')}
-                    reps={parseInt(localReps[set.id] || set.reps?.toString() || '')}
+                    weight={
+                      localWeights[set.id] !== undefined
+                        ? parseFloat(localWeights[set.id]) || undefined
+                        : set.weight ?? undefined
+                    }
+                    reps={
+                      localReps[set.id] !== undefined
+                        ? parseInt(localReps[set.id], 10) || undefined
+                        : set.reps ?? undefined
+                    }
                     isCompleted={set.isCompleted}
-                    onWeightChange={(value) => handleSetWeightChange(set.id, value)}
-                    onRepsChange={(value) => handleSetRepsChange(set.id, value)}
+                    onWeightChange={(v) => setLocalWeights((p) => ({ ...p, [set.id]: v }))}
+                    onRepsChange={(v) => setLocalReps((p) => ({ ...p, [set.id]: v }))}
                     onToggleComplete={() => handleToggleSetComplete(set.id)}
-                    onDelete={() => {}} // TODO: implement delete
+                    onDelete={() => handleDeleteSet(set.id)}
                   />
                 ))}
               </View>
 
-              {/* Navigation */}
-              <View className="flex-row gap-3 mt-4">
-                <Button
-                  title="Previous"
-                  variant="secondary"
-                  disabled={currentExerciseIndex === 0}
-                  onPress={() => setCurrentExerciseIndex(Math.max(0, currentExerciseIndex - 1))}
-                  size="sm"
-                />
-                <Button
-                  title="Next"
-                  variant="secondary"
-                  disabled={currentExerciseIndex === session.exercises.length - 1}
-                  onPress={() => setCurrentExerciseIndex(Math.min(session.exercises.length - 1, currentExerciseIndex + 1))}
-                  size="sm"
-                />
+              {/* Exercise navigation */}
+              <View className="flex-row gap-3 mt-2">
+                <View className="flex-1">
+                  <Button
+                    title="← Previous"
+                    variant="secondary"
+                    size="sm"
+                    disabled={currentExerciseIndex === 0}
+                    onPress={() => setCurrentExerciseIndex((i) => Math.max(0, i - 1))}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Button
+                    title="Next →"
+                    variant="secondary"
+                    size="sm"
+                    disabled={currentExerciseIndex === session.exercises.length - 1}
+                    onPress={() =>
+                      setCurrentExerciseIndex((i) => Math.min(session.exercises.length - 1, i + 1))
+                    }
+                  />
+                </View>
               </View>
+
+              {/* Exercise dots */}
+              {session.exercises.length > 1 && (
+                <View className="flex-row justify-center gap-1 mt-1">
+                  {session.exercises.map((_, i) => (
+                    <Pressable key={i} onPress={() => setCurrentExerciseIndex(i)}>
+                      <View
+                        className={`w-2 h-2 rounded-full ${
+                          i === currentExerciseIndex ? 'bg-orange-500' : 'bg-slate-700'
+                        }`}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* Footer - Finish Button */}
+      {/* Footer */}
       <View className="px-4 py-4 bg-slate-900 border-t border-slate-800">
         <Button
           title="Finish Workout"
