@@ -66,11 +66,11 @@ export async function seedDatabase() {
     console.log(`[DB] ✓ Seeded ${SEED_EXERCISES.length} exercises`);
 
     // 4. Seed exercise-muscle group mappings
-    await db.insert(exerciseMuscleGroups).values(EXERCISE_MUSCLE_GROUPS);
+    await db.insert(exerciseMuscleGroups).values([...EXERCISE_MUSCLE_GROUPS]);
     console.log(`[DB] ✓ Seeded ${EXERCISE_MUSCLE_GROUPS.length} exercise-muscle group mappings`);
 
     // 5. Seed exercise-equipment mappings
-    await db.insert(exerciseEquipment).values(EXERCISE_EQUIPMENT);
+    await db.insert(exerciseEquipment).values([...EXERCISE_EQUIPMENT]);
     console.log(`[DB] ✓ Seeded ${EXERCISE_EQUIPMENT.length} exercise-equipment mappings`);
 
     // 6. Create default user profile if not exists

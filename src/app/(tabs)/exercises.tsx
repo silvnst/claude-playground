@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, FlatList, Pressable } from 'react-native';
+import { View, Text, ScrollView, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useExercises, useMuscleGroups, useEquipment } from '@/hooks/useExercises';
 import { Input } from '@/components/ui/Input';
@@ -92,7 +92,12 @@ export default function ExercisesScreen() {
             {exercises.length} Exercise{exercises.length !== 1 ? 's' : ''}
           </Text>
 
-          {exercises.length === 0 && !isLoading ? (
+          {isLoading ? (
+            <View className="py-8 items-center">
+              <ActivityIndicator color="#f97316" />
+              <Text className="text-gray-400 text-sm mt-3">Loading exercises...</Text>
+            </View>
+          ) : exercises.length === 0 ? (
             <EmptyState title="No exercises found" message="Try adjusting your filters" icon="search" />
           ) : (
             <FlatList

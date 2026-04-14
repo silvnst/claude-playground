@@ -55,9 +55,10 @@ export function useAddSetToExercise() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: addSetToExercise,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['session'] });
+    mutationFn: ({ sessionExerciseId }: { sessionExerciseId: string; sessionId: string }) =>
+      addSetToExercise(sessionExerciseId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
     },
   });
 }
@@ -66,9 +67,10 @@ export function useUpdateSet() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ setId, data }: { setId: string; data: Parameters<typeof updateSet>[1] }) => updateSet(setId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['session'] });
+    mutationFn: ({ setId, data }: { setId: string; sessionId: string; data: Parameters<typeof updateSet>[1] }) =>
+      updateSet(setId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
     },
   });
 }
@@ -77,9 +79,9 @@ export function useDeleteSet() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: deleteSet,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['session'] });
+    mutationFn: ({ setId }: { setId: string; sessionId: string }) => deleteSet(setId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['session', variables.sessionId] });
     },
   });
 }

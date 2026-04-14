@@ -134,7 +134,7 @@ export default function ExerciseDetailScreen() {
             <Text className="text-white font-semibold">Recent History</Text>
             {history.map((entry, i) => {
               const completedSets = entry.sets.filter((s) => s.isCompleted);
-              const maxWeight = Math.max(...completedSets.map((s) => s.weight ?? 0));
+              const maxWeight = Math.max(0, ...completedSets.map((s) => s.weight ?? 0));
               return (
                 <Card key={i} padding="md">
                   <View className="flex-row items-center justify-between">

@@ -66,7 +66,6 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animationEnabled: true,
         }}
       >
         <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
