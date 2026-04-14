@@ -45,6 +45,7 @@ export default function HistoryScreen() {
           );
 
           return (
+            <Pressable onPress={() => router.push(`/workout/summary/${session.id}`)}>
             <Card padding="md">
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 gap-1">
@@ -89,6 +90,7 @@ export default function HistoryScreen() {
                 ) : null}
               </View>
             </Card>
+            </Pressable>
           );
         }}
       />

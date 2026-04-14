@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -46,21 +46,21 @@ export default function WorkoutScreen() {
   const currentExercise = session.exercises[currentExerciseIndex];
   const hasExercises = session.exercises.length > 0;
 
-  const openExercisePicker = () => {
+  const openExercisePicker = useCallback(() => {
     router.push(`/exercise/picker?sessionId=${sessionId}`);
-  };
+  }, [router, sessionId]);
 
-  const handleToggleSetComplete = (setId: string) => {
+  const handleToggleSetComplete = useCallback((setId: string) => {
     const set = currentExercise?.sets.find((s) => s.id === setId);
     if (!set) return;
     const weight = localWeights[setId] ? parseFloat(localWeights[setId]) : set.weight;
     const reps = localReps[setId] ? parseInt(localReps[setId], 10) : set.reps;
-    updateSet.mutate({ setId, data: { weight, reps, isCompleted: !set.isCompleted } });
-  };
+    updateSet.mutate({ setId, sessionId, data: { weight, reps, isCompleted: !set.isCompleted } });
+  }, [currentExercise, localWeights, localReps, sessionId, updateSet]);
 
-  const handleDeleteSet = (setId: string) => {
-    deleteSet.mutate(setId);
-  };
+  const handleDeleteSet = useCallback((setId: string) => {
+    deleteSet.mutate({ setId, sessionId });
+  }, [deleteSet, sessionId]);
 
   const handleFinishWorkout = () => {
     Alert.alert('Finish Workout?', 'Mark this workout as complete?', [
@@ -125,7 +125,7 @@ export default function WorkoutScreen() {
               <View>
                 <View className="flex-row items-center justify-between mb-2">
                   <Text className="text-white font-semibold">Sets</Text>
-                  <Pressable onPress={() => addSet.mutate(currentExercise.id)} hitSlop={8}>
+                  <Pressable onPress={() => addSet.mutate({ sessionExerciseId: currentExercise.id, sessionId })} hitSlop={8}>
                     <Ionicons name="add-circle" size={26} color="#f97316" />
                   </Pressable>
                 </View>

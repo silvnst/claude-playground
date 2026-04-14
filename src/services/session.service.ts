@@ -1,4 +1,4 @@
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 import { db } from '@/db/client';
 import {
   workoutSessions,
@@ -102,26 +102,31 @@ export async function getSession(id: string): Promise<SessionWithDetails | null>
     .where(eq(sessionExercises.sessionId, id))
     .orderBy(sessionExercises.orderIndex);
 
-  const result: SessionWithDetails = {
-    ...session[0],
-    exercises: [],
-  };
+  const sessionExerciseIds = sessExercises.map((se) => se.sessionExercise.id);
+  const allSets =
+    sessionExerciseIds.length > 0
+      ? await db
+          .select()
+          .from(setLogs)
+          .where(inArray(setLogs.sessionExerciseId, sessionExerciseIds))
+          .orderBy(setLogs.setIndex)
+      : [];
 
-  for (const se of sessExercises) {
-    const sets = await db
-      .select()
-      .from(setLogs)
-      .where(eq(setLogs.sessionExerciseId, se.sessionExercise.id))
-      .orderBy(setLogs.setIndex);
-
-    result.exercises.push({
-      ...se.sessionExercise,
-      exercise: se.exercise,
-      sets,
-    });
+  const setsBySessionExercise = new Map<string, (typeof setLogs.$inferSelect)[]>();
+  for (const set of allSets) {
+    const list = setsBySessionExercise.get(set.sessionExerciseId) ?? [];
+    list.push(set);
+    setsBySessionExercise.set(set.sessionExerciseId, list);
   }
 
-  return result;
+  return {
+    ...session[0],
+    exercises: sessExercises.map((se) => ({
+      ...se.sessionExercise,
+      exercise: se.exercise,
+      sets: setsBySessionExercise.get(se.sessionExercise.id) ?? [],
+    })),
+  };
 }
 
 export async function addExerciseToSession(
@@ -256,7 +261,7 @@ async function checkForPRs(sessionId: string) {
     for (const set of sets) {
       if (!set.weight || !set.reps) continue;
 
-      // Check max weight PR
+      // Check max weight PR — wrap delete+insert atomically
       const existingMaxWeight = await db
         .select()
         .from(personalRecords)
@@ -269,23 +274,25 @@ async function checkForPRs(sessionId: string) {
         .limit(1);
 
       if (existingMaxWeight.length === 0 || set.weight > existingMaxWeight[0].value) {
-        if (existingMaxWeight.length > 0) {
-          await db
-            .delete(personalRecords)
-            .where(eq(personalRecords.id, existingMaxWeight[0].id));
-        }
-        await db.insert(personalRecords).values({
-          id: generateId(),
-          exerciseId: se.exerciseId,
-          recordType: 'max_weight',
-          value: set.weight,
-          achievedAt: now(),
-          setLogId: set.id,
-          createdAt: now(),
+        await db.transaction(async (tx) => {
+          if (existingMaxWeight.length > 0) {
+            await tx
+              .delete(personalRecords)
+              .where(eq(personalRecords.id, existingMaxWeight[0].id));
+          }
+          await tx.insert(personalRecords).values({
+            id: generateId(),
+            exerciseId: se.exerciseId,
+            recordType: 'max_weight',
+            value: set.weight!,
+            achievedAt: now(),
+            setLogId: set.id,
+            createdAt: now(),
+          });
         });
       }
 
-      // Check estimated 1RM PR
+      // Check estimated 1RM PR — wrap delete+insert atomically
       const est1rm = estimated1RM(set.weight, set.reps);
       if (est1rm > 0) {
         const existing1rm = await db
@@ -300,17 +307,21 @@ async function checkForPRs(sessionId: string) {
           .limit(1);
 
         if (existing1rm.length === 0 || est1rm > existing1rm[0].value) {
-          if (existing1rm.length > 0) {
-            await db.delete(personalRecords).where(eq(personalRecords.id, existing1rm[0].id));
-          }
-          await db.insert(personalRecords).values({
-            id: generateId(),
-            exerciseId: se.exerciseId,
-            recordType: 'estimated_1rm',
-            value: est1rm,
-            achievedAt: now(),
-            setLogId: set.id,
-            createdAt: now(),
+          await db.transaction(async (tx) => {
+            if (existing1rm.length > 0) {
+              await tx
+                .delete(personalRecords)
+                .where(eq(personalRecords.id, existing1rm[0].id));
+            }
+            await tx.insert(personalRecords).values({
+              id: generateId(),
+              exerciseId: se.exerciseId,
+              recordType: 'estimated_1rm',
+              value: est1rm,
+              achievedAt: now(),
+              setLogId: set.id,
+              createdAt: now(),
+            });
           });
         }
       }
@@ -325,14 +336,58 @@ export async function getRecentSessions(limit: number = 20): Promise<SessionWith
     .orderBy(desc(workoutSessions.startedAt))
     .limit(limit);
 
-  const result: SessionWithDetails[] = [];
+  if (sessions.length === 0) return [];
 
-  for (const session of sessions) {
-    const full = await getSession(session.id);
-    if (full) result.push(full);
+  const sessionIds = sessions.map((s) => s.id);
+
+  // Batch fetch session exercises + exercise details in one query
+  const sessExercises = await db
+    .select({
+      sessionExercise: sessionExercises,
+      exercise: exercises,
+    })
+    .from(sessionExercises)
+    .innerJoin(exercises, eq(sessionExercises.exerciseId, exercises.id))
+    .where(inArray(sessionExercises.sessionId, sessionIds))
+    .orderBy(sessionExercises.orderIndex);
+
+  const sessionExerciseIds = sessExercises.map((se) => se.sessionExercise.id);
+
+  // Batch fetch all sets in one query
+  const allSets =
+    sessionExerciseIds.length > 0
+      ? await db
+          .select()
+          .from(setLogs)
+          .where(inArray(setLogs.sessionExerciseId, sessionExerciseIds))
+          .orderBy(setLogs.setIndex)
+      : [];
+
+  // Group sets by sessionExerciseId
+  const setsBySessionExercise = new Map<string, (typeof setLogs.$inferSelect)[]>();
+  for (const set of allSets) {
+    const list = setsBySessionExercise.get(set.sessionExerciseId) ?? [];
+    list.push(set);
+    setsBySessionExercise.set(set.sessionExerciseId, list);
   }
 
-  return result;
+  // Group exercises by sessionId
+  const exercisesBySession = new Map<string, SessionWithDetails['exercises']>();
+  for (const se of sessExercises) {
+    const sid = se.sessionExercise.sessionId;
+    const list = exercisesBySession.get(sid) ?? [];
+    list.push({
+      ...se.sessionExercise,
+      exercise: se.exercise,
+      sets: setsBySessionExercise.get(se.sessionExercise.id) ?? [],
+    });
+    exercisesBySession.set(sid, list);
+  }
+
+  return sessions.map((session) => ({
+    ...session,
+    exercises: exercisesBySession.get(session.id) ?? [],
+  }));
 }
 
 export async function deleteSession(id: string) {

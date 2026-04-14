@@ -65,7 +65,7 @@ export default function WorkoutSummaryScreen() {
             <Text className="text-white font-semibold text-lg">Exercises</Text>
             {session.exercises.map((sessEx) => {
               const completedSetsForEx = sessEx.sets.filter((s) => s.isCompleted).length;
-              const maxWeight = Math.max(...sessEx.sets.filter((s) => s.isCompleted && s.weight).map((s) => s.weight || 0));
+              const maxWeight = Math.max(0, ...sessEx.sets.filter((s) => s.isCompleted && s.weight).map((s) => s.weight || 0));
               const isPRex = isPR(sessEx.exercise.id);
 
               return (
